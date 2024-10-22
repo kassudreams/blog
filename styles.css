@@ -1,37 +1,63 @@
 /* styles.css */
+
+/* Basic styles remain unchanged */
 body {
     font-family: 'Arial', sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #f0f0f0;
+    background-color: #444;
+    color: beige;
 }
 
 .navbar {
     position: sticky;
     top: 0;
-    background-color: #333;
-    color: white;
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    background-color: #444; /* Reddish Brown */
+    color: beige;
+    padding: 5px 5px; 
+    border-radius: 10px; /* Rounded corners */
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+
 }
 
 .navbar nav a {
-    color: white;
+    background-color:#A0522D;
+    color: beige; /* Reddish Brown for Links */
     text-decoration: none;
-    margin: 0 10px;
+    transition: color 0.3s, transform 0.3s; /* Smooth transition */
+    border: 1px solid #A0522D;
+    border-radius: 5px; /* Rounded corners */
+    padding: 5px 5px;
+    display: inline-block;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    
 }
 
 .navbar nav a:hover {
-    text-decoration: underline;
+    color: #A0522D; /* Light Reddish Brown on Hover */
+    transform: scale(1.05); /* Slightly increase size on hover */
+    margin: 5px;
+    
 }
 
+.search-bar {
+    background-color: beige;
+}
+
+
+
 .hero {
-    background-color: #555;
-    color: white;
+    background-color: #A0522D; /* Reddish Brown */
+    color: beige; /* Light Grey Text */
     text-align: center;
-    padding: 50px 20px;
+    padding: 5px 5px; /* More padding for a bolder hero section */
+    border-radius: 5px; /* Rounded corners */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Shadow for depth */
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 .hero h2 {
@@ -41,38 +67,99 @@ body {
 
 .hero p {
     margin-top: 10px;
-    font-size: 18px;
+    font-size: 20px;
 }
 
 .posts-container {
-    padding: 20px;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
 }
 
-.post-link {
-    background-color: white;
+/* Style the post wrapper */
+.post-wrapper {
+    width: 300px; /* Set a fixed width for the tile */
+    border: 1px solid #444;
+    border-radius: 10px; /* Rounded corners */
     padding: 15px;
     margin: 15px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(255, 255, 255, 0.1); /* Light shadow for posts */
+    transition: transform 0.3s, box-shadow 0.3s; /* Smooth scaling on hover */
+}
+
+.post-wrapper:hover {
+    transform: translateY(-5px); /* Lift effect on hover */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); /* Deeper shadow */
+    background-color: #A0522D; /* Light Reddish Brown on Hover */
+}
+
+/* Style for the images */
+.post-wrapper img {
+    width: 100%; /* Make the image fill the width of the tile */
+    height: 200px; /* Fixed height */
+    object-fit: cover; /* Ensures the image fits inside the box without distortion */
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.post-link {
+    background-color: #282828; /* Darker Grey for Links */
+    padding: 15px;
+
     border-radius: 8px;
-    width: 300px;
+    width: 100%; /* Full width */
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    font-size: 18px;
+    color: beige; /* Light Grey Text */
     text-decoration: none;
-    color: #333;
-    transition: transform 0.3s, box-shadow 0.3s;
+    transition: transform 0.3s, box-shadow 0.3s, background-color 0.3s; /* Add background color transition */
 }
 
 .post-link:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    background-color: #A0522D; /* Light Reddish Brown on Hover */
+    color: beige; /* Light Grey on Hover */
+    transform: translateY(-2px); /* Slight lift effect */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); /* Deeper shadow */
+    
 }
+
+.post-date {
+    font-size: 14px;
+    
+    color: beige;
+}
+
+.post-tags {
+    font-size: 14px;
+    color: beige;
+    border: 1px solid #A0522D;
+    border-radius: 10px;
+    margin-top: 5px; /* Space above tags */
+    display: inline-flex;
+    flex-wrap: wrap;
+}
+
+.post-tags .tag {
+    display: inline-block;
+    background-color: #007BFF; /* Blue background */
+    color: white; /* White text */
+    padding: 5px 10px;
+    margin: 5px;
+    border-radius: 5px;
+    font-size: 12px;
+}
+
+.post-wrapper:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Shadow on hover */
+}
+
 
 footer {
     text-align: center;
-    padding: 15px;
-    background-color: #333;
-    color: white;
+    padding: 20px;
+    background-color: #282828; /* Darker Grey for Footer */
+    color: #EAEAEA;
     margin-top: 30px;
 }
 
@@ -85,12 +172,12 @@ footer {
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7); /* Darker background for modal */
 }
 
 .modal-content {
-    background-color: #fefefe;
-    margin: 15% auto;
+    background-color: #fff;
+    margin: 10% auto;
     padding: 20px;
     border: 1px solid #888;
     width: 80%;
@@ -106,8 +193,61 @@ footer {
 }
 
 .close:hover,
-close:focus {
+.close:focus {
     color: black;
     text-decoration: none;
     cursor: pointer;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth; /* Enables smooth scrolling */
+}
+
+/* Media Queries for Responsive Design */
+@media (max-width: 768px) {
+    .post-wrapper {
+        width: 90%; /* Use more of the available width */
+        margin: 10px auto; /* Center the posts */
+    }
+
+    .navbar {
+        flex-direction: column; /* Stack navbar items */
+        align-items: flex-start; /* Align to start */
+    }
+
+    .navbar nav {
+        margin-top: 10px; /* Add space between title and nav links */
+    }
+
+    .hero {
+        padding: 40px 20px; /* Reduce padding */
+    }
+
+    .hero h2 {
+        font-size: 28px; /* Adjust font size for smaller screens */
+    }
+
+    .hero p {
+        font-size: 18px; /* Adjust font size for smaller screens */
+    }
+}
+
+@media (max-width: 480px) {
+    .post-wrapper {
+        width: 95%; /* Use almost full width */
+    }
+
+    .post-link {
+        width: auto; /* Allow links to use available space */
+        padding: 10px;
+    }
+
+    .hero h2 {
+        font-size: 24px; /* Smaller font size */
+    }
+
+    .hero p {
+        font-size: 14px; /* Smaller font size */
+    }
 }
