@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Scene with Spherical Ground and Trees</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+   
+    const sphereRadius = 200;
+    const cubeSize = 20;
+    const cameraOffset = 100; // Distance between camera and cube
+    const cameraHeight = 50;  // Camera height above the cube
+    const cameraSmoothness = 0.1; // Controls camera smoothness
+
+    let playerPos = { lat: Math.PI / 2, lon: 0 }; // Start at the top of the sphere
+    let cameraPos = { x: 0, y: 0, z: 0 }; // Camera position
+    let playerMovementSpeed = 0.03; // Speed of player movement
+
+    const trees = [];
+    const numTrees = 10; // Number of trees to create
+
+    // Generate random tree positions
+    for (let i = 0; i < numTrees; i++) {
+      const lat = Math.random() * Math.PI; // Random latitude
+      const lon = Math.random() * 2 * Math.PI; // Random longitude
+
+      trees.push({ lat, lon });
+    }
+
+    const keys = {
+      w: false,
+      a: false,
+      s: false,
+      d: false,
+    };
+
+    document.addEventListener('keydown', (e) => keys[e.key] = true);
+    document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+    function handleInput() {
+      // Update latitude and longitude based on key inputs
+      if (keys.w) playerPos.lat = Math.max(0.1, playerPos.lat + playerMovementSpeed); // Move north (decrease latitude)
+      if (keys.s) playerPos.lat = Math.min(Math.PI - 0.1, playerPos.lat - playerMovementSpeed); // Move south (increase latitude)
+      if (keys.a) playerPos.lon += playerMovementSpeed; // Move west (decrease longitude)
+      if (keys.d) playerPos.lon -= playerMovementSpeed; // Move east (increase longitude)
+    }
+
+    function getPlayerPosition() {
+      // Convert spherical coordinates to Cartesian coordinates
+      const x = sphereRadius * Math.sin(playerPos.lat) * Math.cos(playerPos.lon);
+      const y = sphereRadius * Math.cos(playerPos.lat);
+      const z = sphereRadius * Math.sin(playerPos.lat) * Math.sin(playerPos.lon);
+      return { x, y, z };
+    }
+
+    
+
+    function updateCameraPosition() {
+      const playerPos3D = getPlayerPosition();
+
+      // Set camera slightly behind the player and above it
+      const offsetLat = playerPos.lat - 0.2; // Camera latitude is slightly behind the player
+      const cameraX = sphereRadius * Math.sin(offsetLat) * Math.cos(playerPos.lon);
+      const cameraY = sphereRadius * Math.cos(offsetLat) + cameraHeight;
+      const cameraZ = sphereRadius * Math.sin(offsetLat) * Math.sin(playerPos.lon);
+
+      // Smooth camera movement
+      cameraPos.x += (cameraX - cameraPos.x) * cameraSmoothness;
+      cameraPos.y += (cameraY - cameraPos.y) * cameraSmoothness;
+      cameraPos.z += (cameraZ - cameraPos.z) * cameraSmoothness;
+    }
+
+
+    function project3D(point) {
+      const scale = 500 / (500 + point.z - cameraPos.z); // Projection based on distance to the camera
+      return {
+        x: (point.x - cameraPos.x) * scale + canvas.width / 2,
+        y: (point.y - cameraPos.y) * scale + canvas.height / 2
+      };
+    }
+
+    function drawCube() {
+      const cubePos = getPlayerPosition();
+      const halfSize = cubeSize / 2;
+      const points = [
+        { x: -halfSize, y: -halfSize, z: -halfSize },
+        { x: halfSize, y: -halfSize, z: -halfSize },
+        { x: halfSize, y: halfSize, z: -halfSize },
+        { x: -halfSize, y: halfSize, z: -halfSize },
+        { x: -halfSize, y: -halfSize, z: halfSize },
+        { x: halfSize, y: -halfSize, z: halfSize },
+        { x: halfSize, y: halfSize, z: halfSize },
+        { x: -halfSize, y: halfSize, z: halfSize }
+      ];
+
+      points.forEach(point => {
+        point.x += cubePos.x;
+        point.y += cubePos.y;
+        point.z += cubePos.z;
+      });
+
+      // Draw cube faces
+      ctx.fillStyle = '#FF0000'; // Color for cube
+      const projected = points.map(p => project3D(p));
+      ctx.beginPath();
+      projected.forEach((p, i) => {
+        if (i === 0) {
+          ctx.moveTo(p.x, p.y);
+        } else {
+          ctx.lineTo(p.x, p.y);
+        }
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function drawGround() {
+      const groundPoints = [];
+      const divisions = 20;
+
+      for (let i = 0; i <= divisions; i++) {
+        const lat = Math.PI * (i / divisions);
+        for (let j = 0; j <= divisions; j++) {
+          const lon = 2 * Math.PI * (j / divisions);
+          const x = sphereRadius * Math.sin(lat) * Math.cos(lon);
+          const y = sphereRadius * Math.cos(lat);
+          const z = sphereRadius * Math.sin(lat) * Math.sin(lon);
+          groundPoints.push({ x, y, z });
+        }
+      }
+
+      ctx.fillStyle = '#A3D9A5'; 
+      ctx.strokeStyle = '#000';
+
+      const projectedGroundPoints = groundPoints.map(p => project3D({ x: p.x, y: p.y, z: p.z }));
+      ctx.beginPath();
+      projectedGroundPoints.forEach((p, i) => {
+        if (i === 0) {
+          ctx.moveTo(p.x, p.y);
+        } else {
+          ctx.lineTo(p.x, p.y);
+        }
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function drawTrees() {
+      trees.forEach(tree => {
+        const treePos = {
+          x: sphereRadius * Math.sin(tree.lat) * Math.cos(tree.lon),
+          y: sphereRadius * Math.cos(tree.lat),
+          z: sphereRadius * Math.sin(tree.lat) * Math.sin(tree.lon)
+        };
+
+        // Project tree position to screen
+        const treeProjected = project3D(treePos);
+
+        // Draw the trunk
+        ctx.fillStyle = '#8B4513'; // Brown
+        ctx.fillRect(treeProjected.x - 5, treeProjected.y - 20, 10, 20); // Trunk
+
+        // Draw the foliage
+        ctx.fillStyle = '#228B22'; // Green
+        ctx.beginPath();
+        ctx.arc(treeProjected.x, treeProjected.y - 30, 15, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function render() {
+      ctx.fillStyle = '#87CEEB'; // Light blue sky color
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      handleInput();  
+      updateCameraPosition(); // Update the camera position based on player movement
+      drawGround();
+      drawTrees();
+      drawCube();
+      requestAnimationFrame(render);
+    }
+
+    render();
+  </script>
+</body>
+</html>
