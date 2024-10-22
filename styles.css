@@ -10,12 +10,12 @@ body {
 }
 
 .navbar {
+    font-size: 28px;
     position: sticky;
-    top: 0;
     background-color: #444; /* Reddish Brown */
     color: beige;
-    padding: 5px 5px; 
-    border-radius: 10px; /* Rounded corners */
+    padding: 20px 20px; 
+    border-radius: 5px; /* Rounded corners */
     text-align: center;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
 
@@ -26,37 +26,37 @@ body {
     color: beige; /* Reddish Brown for Links */
     text-decoration: none;
     transition: color 0.3s, transform 0.3s; /* Smooth transition */
-    border: 1px solid #A0522D;
+    padding: 2px;
     border-radius: 5px; /* Rounded corners */
-    padding: 5px 5px;
-    display: inline-block;
+    display: inline-flex;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
-    
 }
 
 .navbar nav a:hover {
-    color: #A0522D; /* Light Reddish Brown on Hover */
+    color: #A0522D; /* Reddish Brown on Hover */
     transform: scale(1.05); /* Slightly increase size on hover */
-    margin: 5px;
+
     
 }
 
 .search-bar {
     background-color: beige;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    font-size: 14px;
 }
 
 
 
 .hero {
     background-color: #A0522D; /* Reddish Brown */
-    color: beige; /* Light Grey Text */
+    color: beige;
     text-align: center;
     padding: 5px 5px; /* More padding for a bolder hero section */
     border-radius: 5px; /* Rounded corners */
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Shadow for depth */
-    margin: 0;
+
     display: flex;
-    flex-wrap: wrap;
+
     justify-content: center;
 }
 
