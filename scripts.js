@@ -39,6 +39,14 @@ const posts = [
         image:"images/posts/post3.png",
         date: "October 22, 2024",
         tags: ["Game Dev", "HTML", "Javascript", "Canvas"]
+    },
+    {
+        title: "EBIN GEIMU", 
+        summary: "EBIN THREE.JS GEIMU",
+        link: "threejsrpg/index.html",
+        image:"images/posts/post4.png",
+        date: "October 29, 2024",
+        tags: ["Game Dev", "Three.js", "Javascript", "Canvas"]
     }
 ];
 
