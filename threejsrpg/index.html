@@ -69,8 +69,8 @@
         class SpriteManager {
             constructor() {
                 this.sprites = {}; // store all sprites in an object
-                this.playerSheet = new THREE.TextureLoader().load("/png/player.png");
-                this.zombieSheet = new THREE.TextureLoader().load("/png/zombieSheet.png");
+                this.playerSheet = new THREE.TextureLoader().load("threejsrpg/png/player.png");
+                this.zombieSheet = new THREE.TextureLoader().load("threejsrpg/png/zombieSheet.png");
             }
 
 
@@ -589,7 +589,7 @@
                 const tree = new THREE.Mesh(treeGeometry, treeMaterial);
                 scene.add(tree);
 
-                const treeSpriteMap = new THREE.TextureLoader().load("/png/tree.png");
+                const treeSpriteMap = new THREE.TextureLoader().load("threejsrpg/png/tree.png");
                 const treeSpriteMaterial = new THREE.SpriteMaterial({ map: treeSpriteMap });
                 const treeSprite = new THREE.Sprite(treeSpriteMaterial);
                 treeSprite.position.set(0, 1, 0);

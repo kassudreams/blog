@@ -46,7 +46,7 @@ const posts = [
         link: "threejsrpg/index.html",
         image:"images/posts/post4.png",
         date: "October 29, 2024",
-        tags: ["Game Dev", "Three.js", "Javascript", "Canvas"]
+        tags: ["Game Dev", "Three.js", "Javascript", "HTML"]
     }
 ];
 
