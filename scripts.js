@@ -61,7 +61,7 @@ function renderPosts() {
         postLink.className = 'post-link';
         postLink.textContent = post.title;
 
-        postLink.addEventListener('click', () => openModal(post)); // Open modal on click
+        postWrapper.addEventListener('click', () => openModal(post)); // Open modal on click
 
         const postDate = document.createElement('p');
         postDate.className = 'post-date';

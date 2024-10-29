@@ -17,7 +17,7 @@ body {
     padding: 20px 20px; 
     border-radius: 5px; /* Rounded corners */
     text-align: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Subtle shadow */
 
 }
 
@@ -29,7 +29,7 @@ body {
     padding: 2px;
     border-radius: 5px; /* Rounded corners */
     display: inline-flex;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Subtle shadow */
 }
 
 .navbar nav a:hover {
@@ -126,28 +126,26 @@ body {
 
 .post-date {
     font-size: 14px;
-    
+    padding: 15px 5px;
     color: beige;
 }
 
 .post-tags {
-    font-size: 14px;
-    color: beige;
-    border: 1px solid #A0522D;
-    border-radius: 10px;
-    margin-top: 5px; /* Space above tags */
-    display: inline-flex;
-    flex-wrap: wrap;
+
+
+
 }
 
 .post-tags .tag {
+    font-size: 12px;
     display: inline-block;
-    background-color: #007BFF; /* Blue background */
-    color: white; /* White text */
+    background-color: #A0522D; /* Blue background */
+    color: beige; /* White text */
     padding: 5px 10px;
     margin: 5px;
     border-radius: 5px;
     font-size: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 .post-wrapper:hover {
@@ -176,7 +174,7 @@ footer {
 }
 
 .modal-content {
-    background-color: #fff;
+    background-color: #A0522D;
     margin: 10% auto;
     padding: 20px;
     border: 1px solid #888;
