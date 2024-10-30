@@ -16,22 +16,17 @@ document.getElementById('search').addEventListener('input', function(event) {
 
 // List of blog posts with their titles, summaries, and links
 const posts = [
-    { 
-        title: "Web game practice", 
-        summary: "Wicked abomination of a game prototype with three.js! I also did some nginx server stuff with simple socket.io stuff and hosted it myself.. So the prototype is not available through github pages.",
-        link: "",
-        image: "images/posts/post1.gif",
-        date: "October 22, 2024",
-        tags: ["Game Dev", "Three.js"]
+    
+    {
+        title: "Three.js RPG Prototype", 
+        summary: "My first game developed for the web. I might not finish it. My friend made our own sprites for this!",
+        link: "threejsrpg/index.html",
+        image:"images/posts/post4.png",
+        date: "October 29, 2024",
+        tags: ["Game Dev", "Javascript" , "Three.js", "Cannon.js"]
     },
-    { 
-        title: "WebGL practise", 
-        summary: "WebGL & Javascript practise with gl-matrix library. It took too much of my machines resources.. Better to keep my projects efficient and not that heavy.",
-        link: "webgl-practise/index.html",
-        image:"images/posts/post2.png",
-        date: "October 22, 2024",
-        tags: ["Game Dev", "Javascript", "WebGL", "gl-matrix"]
-    },
+
+    
     { 
         title: "Canvas vector graphics", 
         summary: "HTML Canvas & Javascript project with vector graphics.",
@@ -40,14 +35,25 @@ const posts = [
         date: "October 22, 2024",
         tags: ["Game Dev", "HTML", "Javascript", "Canvas"]
     },
-    {
-        title: "EBIN GEIMU", 
-        summary: "EBIN THREE.JS GEIMU",
-        link: "threejsrpg/index.html",
-        image:"images/posts/post4.png",
-        date: "October 29, 2024",
-        tags: ["Game Dev", "Three.js", "Javascript", "HTML"]
-    }
+
+    { 
+        title: "WebGL practise", 
+        summary: "WebGL & Javascript practise with gl-matrix library. It took too much of my machines resources.. Better to keep my projects efficient and not that heavy.",
+        link: "webgl-practise/index.html",
+        image:"images/posts/post2.png",
+        date: "October 22, 2024",
+        tags: ["Game Dev", "Javascript", "WebGL", "gl-matrix"]
+    },
+
+    { 
+        title: "Web game practice", 
+        summary: "Wicked abomination of a game prototype with three.js! I also did some nginx server stuff with simple socket.io stuff and hosted it myself.. So the prototype is not available through github pages.",
+        link: "",
+        image: "images/posts/post1.gif",
+        date: "October 22, 2024",
+        tags: ["Game Dev", "Three.js", "Mixamo.com"]
+    },
+
 ];
 
 
