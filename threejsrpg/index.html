@@ -391,14 +391,29 @@
                 velocity.x = Math.min(Math.max(velocity.x + this.velocity.x, -maxSpeed), maxSpeed);
                 velocity.z = Math.min(Math.max(velocity.z + this.velocity.z, -maxSpeed), maxSpeed);
 
+
+                /*
                 camera.position.x = gameManager.player.mesh.position.x;
                 camera.position.z = gameManager.player.mesh.position.z + 5;
                 camera.position.y = gameManager.player.mesh.position.y + 5;
 
                 this.mesh.position.set(this.body.position.x, this.body.position.y, this.body.position.z);
                 this.animate();
+                */
 
-  
+                
+                function updateCamera() {
+                    camera.position.x = gameManager.player.mesh.position.x + 2;
+                    camera.position.z = gameManager.player.mesh.position.z + 5;
+                    camera.position.y = gameManager.player.mesh.position.y + 3;
+                    camera.lookAt(gameManager.player.mesh.position);
+                }
+                updateCamera();
+        
+
+                this.mesh.position.set(this.body.position.x, this.body.position.y, this.body.position.z);
+                this.animate();
+    
                 
                 
             }
