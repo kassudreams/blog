@@ -88,6 +88,8 @@
             }
         }
 
+
+
         class Player {
             constructor(spriteManager) {
                 this.spriteManager = spriteManager;
@@ -312,6 +314,9 @@
             }
         }
 
+
+
+
         class CameraManager {
             constructor() {
                 this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -332,22 +337,68 @@
             }
         }
 
+
+
+
+        class GameStateManager {
+            constructor() {
+                this.states = { PLAYING: 'playing', PAUSED: 'paused', GAME_OVER: 'game_over' };
+                this.currentState = this.states.PLAYING;
+            }
+
+            changeState(newState) {
+                if (this.states[newState]) {
+                    this.currentState = this.states[newState];
+                }
+            }
+
+            isPlaying() {
+                return this.currentState === this.states.PLAYING;
+            }
+
+            isPaused() {
+                return this.currentState === this.states.PAUSED;
+            }
+
+            isGameOver() {
+                return this.currentState === this.states.GAME_OVER;
+            }
+        }
+
+
+
+
         class GameManager {
             constructor() {
+                this.entityManager = new EntityManager();
                 this.spriteManager = new SpriteManager();
                 this.spriteManager.loadSprite("player", 0, 0, 0.1, 0.1);
+                this.spriteManager.loadSprite("zombie", 0, 0, 0.1, 0.1);
                 this.player = new Player(this.spriteManager);
                 this.zombie = new Zombie();
                 this.cameraManager = new CameraManager();
+                this.gameStateManager = new GameStateManager();
+                this.inputManager = new InputManager();
+
+                this.initGame();
+            }
+
+            initGame() {
+                this.entityManager.addEntity(this.player);
+                this.entityManager.addEntity(this.zombie);
             }
 
             update() {
-                this.player.update();
-                this.zombie.update();
-                this.cameraManager.followPlayer(this.player);
+                if (this.gameStateManager.isPlaying()) {
+                    this.entityManager.updateEntities();
+                    this.cameraManager.followPlayer(this.player);
+                }
                 requestAnimationFrame(this.update.bind(this));
             }
         }
+
+
+
 
         class Zombie {
             constructor() {
@@ -450,6 +501,9 @@
             }
         }
 
+
+
+
         class Tree {
             constructor() {
                 const treeGeometry = new THREE.PlaneGeometry(1, 1);
@@ -470,6 +524,58 @@
             }
         }
 
+
+
+
+
+        class EntityManager {
+            constructor() {
+                this.entities = [];
+            }
+
+            addEntity(entity) {
+                this.entities.push(entity);
+            }
+
+            removeEntity(entity) {
+                const index = this.entities.indexOf(entity);
+                if (index > -1) {
+                    this.entities.splice(index, 1);
+                }
+            }
+
+            updateEntities() {
+                this.entities.forEach(entity => entity.update());
+            }
+        }
+
+
+
+
+        class InputManager {
+            constructor() {
+                this.keys = {};
+                this.initInputListeners();
+            }
+
+            initInputListeners() {
+                document.addEventListener('keydown', (event) => {
+                    this.keys[event.code] = true;
+                });
+
+                document.addEventListener('keyup', (event) => {
+                    this.keys[event.code] = false;
+                });
+            }
+
+            isKeyPressed(keyCode) {
+                return this.keys[keyCode] || false;
+            }
+        }
+
+
+
+        
         const scene = new THREE.Scene();
  
         const renderer = new THREE.WebGLRenderer();

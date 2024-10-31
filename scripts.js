@@ -20,7 +20,7 @@ const posts = [
     {
         title: "Three.js RPG Prototype", 
         summary: "My first game developed for the web. I might not finish it. My friend made our own sprites for this!",
-        link: "threejsrpg/index.html",
+        link: "threejs-rpg/index.html",
         image:"images/posts/post4.png",
         date: "October 29, 2024",
         tags: ["Game Dev", "Javascript" , "Three.js", "Cannon.js"]
