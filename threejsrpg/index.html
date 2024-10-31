@@ -1,19 +1,20 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <title>EBIN GEIMU</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta property="og:title" content="EBIN GEIMU">
+    <title>EBIN GEIMU</title>
     <style>
         body {
             width: 100%;
             height: 100%;
             margin: 0;
             padding: 0;
+            overflow: hidden;
         }
 
         #joystick-container {
@@ -62,7 +63,8 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // Module for managing sprites
+
+        
         class SpriteManager {
             constructor() {
                 this.sprites = {};
@@ -86,7 +88,6 @@
             }
         }
 
-        // Player class with improved input handling
         class Player {
             constructor(spriteManager) {
                 this.spriteManager = spriteManager;
@@ -196,40 +197,61 @@
                 this.hitboxBody.addShape(this.hitboxShape);
                 world.addBody(this.hitboxBody);
             }
-
             update() {
                 const previousState = this.currentState;
                 let newState = this.states.IDLE;
                 let newDirection = null;
+
+                // Reset velocity
+                this.velocity.set(0, 0, 0);
+
+                // Define movement vectors
+                const rightVector = new CANNON.Vec3(1, 0, 0);
+                const forwardVector = new CANNON.Vec3(0, 0, -1);
+
+                // Adjust velocity based on input
                 if (this.input.left) {
-                    this.velocity.x = -this.speed;
+                    this.velocity.x -= rightVector.x * this.speed;
+                    this.velocity.z -= rightVector.z * this.speed;
                     newDirection = 'left';
-                } else if (this.input.right) {
-                    this.velocity.x = this.speed;
+                }
+                if (this.input.right) {
+                    this.velocity.x += rightVector.x * this.speed;
+                    this.velocity.z += rightVector.z * this.speed;
                     newDirection = 'right';
-                } else {
-                    this.velocity.x = 0;
                 }
                 if (this.input.up) {
-                    this.velocity.z = -this.speed;
+                    this.velocity.x += forwardVector.x * this.speed;
+                    this.velocity.z += forwardVector.z * this.speed;
                     newDirection = 'up';
-                } else if (this.input.down) {
-                    this.velocity.z = this.speed;
-                    newDirection = 'down';
-                } else {
-                    this.velocity.z = 0;
                 }
+                if (this.input.down) {
+                    this.velocity.x -= forwardVector.x * this.speed;
+                    this.velocity.z -= forwardVector.z * this.speed;
+                    newDirection = 'down';
+                }
+
+                // Normalize the velocity to ensure consistent speed in diagonal directions
+                if (this.velocity.length() > 0) {
+                    this.velocity.normalize();
+                    this.velocity.scale(this.speed);
+                }
+
+                // Determine new state
                 if (this.input.attack) {
                     this.startAttack();
                     newState = this.states.ATTACK;
                 } else if (this.velocity.length() > 0) {
                     newState = this.states.MOVE;
                 }
+
+                // Change state if necessary
                 if (newState !== previousState || newDirection !== this.currentDirection) {
                     this.changeState(newState, newDirection);
                 }
+
+                // Apply velocity and update position
                 this.applyVelocity();
-                this.updateCamera();
                 this.mesh.position.set(this.body.position.x, this.body.position.y, this.body.position.z);
                 this.animate();
             }
@@ -242,10 +264,16 @@
             }
 
             updateCamera() {
-                camera.position.x = this.mesh.position.x + 2;
-                camera.position.z = this.mesh.position.z + 5;
-                camera.position.y = this.mesh.position.y + 3;
-                camera.lookAt(this.mesh.position);
+                // Ensure the camera follows the player's position
+                const cameraOffset = new THREE.Vector3(0, 3, 5); // Adjust these values as needed
+                const playerPosition = this.mesh.position.clone();
+                const cameraPosition = playerPosition.add(cameraOffset);
+
+                // Set the camera position
+                gameManager.cameraManager.camera.position.copy(cameraPosition);
+
+                // Make the camera look at the player
+                gameManager.cameraManager.camera.lookAt(this.mesh.position);
             }
 
             changeState(newState, newDirection) {
@@ -276,25 +304,51 @@
                     this.lastFrameUpdate = now;
                 }
             }
+
+            attack(zombie) {
+                if (this.isHitboxActive && !zombie.isDead()) {
+                    zombie.applyDamage(10); // Example damage value
+                }
+            }
         }
 
-        // GameManager class to manage game state
+        class CameraManager {
+            constructor() {
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.initCamera();
+            }
+
+            initCamera() {
+                this.camera.position.set(0, 3, 5);
+            }
+
+            followPlayer(player) {
+                const cameraOffset = new THREE.Vector3(0, 3, 5); // Adjust these values as needed
+                const playerPosition = player.mesh.position.clone();
+                const cameraPosition = playerPosition.add(cameraOffset);
+
+                this.camera.position.copy(cameraPosition);
+                this.camera.lookAt(player.mesh.position); // Ensure the camera looks at the player's position
+            }
+        }
+
         class GameManager {
             constructor() {
                 this.spriteManager = new SpriteManager();
                 this.spriteManager.loadSprite("player", 0, 0, 0.1, 0.1);
                 this.player = new Player(this.spriteManager);
                 this.zombie = new Zombie();
+                this.cameraManager = new CameraManager();
             }
 
             update() {
                 this.player.update();
                 this.zombie.update();
+                this.cameraManager.followPlayer(this.player);
                 requestAnimationFrame(this.update.bind(this));
             }
         }
 
-        // Zombie class with basic AI
         class Zombie {
             constructor() {
                 this.states = { IDLE: 'IDLE', CHASING: 'CHASING', ATTACKING: 'ATTACKING', DEAD: 'DEAD' };
@@ -339,6 +393,17 @@
 
             applyDamage(damage) {
                 this.health -= damage;
+                if (this.isDead()) {
+                    this.state = this.states.DEAD;
+                    this.handleDeath();
+                }
+            }
+
+            handleDeath() {
+                // Remove the zombie from the scene and world
+                scene.remove(this.mesh);
+                world.removeBody(this.body);
+                console.log("Zombie is dead");
             }
 
             isDead() {
@@ -385,7 +450,6 @@
             }
         }
 
-        // Tree class for static objects
         class Tree {
             constructor() {
                 const treeGeometry = new THREE.PlaneGeometry(1, 1);
@@ -406,14 +470,12 @@
             }
         }
 
-        // Initialize scene, camera, and renderer
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+ 
         const renderer = new THREE.WebGLRenderer();
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Add lighting
         const light = new THREE.AmbientLight(0x404040);
         scene.add(light);
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
@@ -424,20 +486,17 @@
         spotLight.castShadow = true;
         scene.add(spotLight);
 
-        // Add grid helper
         const size = 100;
         const divisions = 10;
         const gridHelper = new THREE.GridHelper(size, divisions);
         scene.add(gridHelper);
 
-        // Load ground texture and create ground
         const groundTexture = new THREE.TextureLoader().load("png/ground.png");
         const groundMaterial = new THREE.MeshBasicMaterial({ map: groundTexture });
         const groundGeometry = new THREE.BoxGeometry(size, 1, size);
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         scene.add(ground);
 
-        // Create physics world
         const world = new CANNON.World();
         world.gravity.set(0, -9.8, 0);
         const groundShape = new CANNON.Box(new CANNON.Vec3(size, size, 1));
@@ -447,22 +506,18 @@
         ground.position.copy(groundBody.position);
         world.addBody(groundBody);
 
-        // Initialize game manager and tree
         const gameManager = new GameManager();
         const tree = new Tree();
 
-        // Render loop
         function render() {
             gameManager.update();
             world.step(1 / 60);
-            renderer.render(scene, camera);
+            renderer.render(scene, gameManager.cameraManager.camera);
             requestAnimationFrame(render);
         }
 
-        // Start render loop
         render();
 
-        // Joystick controls
         const joystickContainer = document.getElementById('joystick-container');
         const joystick = document.getElementById('joystick');
         let joystickPressed = false;
