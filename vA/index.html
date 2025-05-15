@@ -1,28 +1,51 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>3D WebGL Game</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Game</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; width: 100vw; height: 100vh; cursor: pointer; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+    <div id="loading">Loading game...</div>
+
+    <script src="game copy.js"></script>
     
-    <script type="module">
-      import { GameEngine } from './engine.js';
-      import { ThirdPersonDemo } from './game.js';
-      import './components.js';
-      import './asset-manager.js'; // Add this line
-    
-      const canvas = document.getElementById('gameCanvas');
-      const engine = new GameEngine(canvas);
-      const demo = new ThirdPersonDemo(engine);
-      
-      demo.initialize().then(() => {
-        console.log('Game initialized');
-      });
+    <script>
+        // Hide loading message when game starts
+        window.addEventListener('load', () => {
+            document.getElementById('loading').style.display = 'none';
+        });
+        
+        // Show loading message if there's an error
+        window.addEventListener('error', (e) => {
+            const loading = document.getElementById('loading');
+            loading.textContent = `Error: ${e.message}`;
+            loading.style.color = 'red';
+            loading.style.display = 'block';
+            console.error(e);
+        });
     </script>
 </body>
 </html>
