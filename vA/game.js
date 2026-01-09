@@ -841,7 +841,7 @@ class SceneNode {
         }
     }
 
-    update(parentWorldMatrix) {
+    update(parentWorldMatrix, deltaTime = 1/60) {
         if (parentWorldMatrix) {
             this.worldMatrix.copy(parentWorldMatrix).multiply(this.localMatrix);
         } else {
@@ -849,7 +849,7 @@ class SceneNode {
         }
 
         this.children.forEach(child => {
-            if (child.update) child.update(this.worldMatrix);
+            if (child.update) child.update(this.worldMatrix, deltaTime);
         });
     }
 
@@ -889,14 +889,15 @@ class MeshNode extends SceneNode {
 }
 
 class PhysicsNode extends SceneNode {
-    constructor(physicsBody) {
+    constructor(physicsBody, collisionHandler = null) {
         super();
         this.physicsBody = physicsBody;
+        this.collisionHandler = collisionHandler;
     }
 
-    update(parentWorldMatrix) {
+    update(parentWorldMatrix, deltaTime = 1/60) {
         if (this.physicsBody) {
-            this.physicsBody.update(1 / 60); // Fixed timestep for physics
+            this.physicsBody.update(deltaTime, this.collisionHandler);
 
             this.localMatrix.identity();
             this.localMatrix.translate(
@@ -949,9 +950,25 @@ class PhysicsBody {
         this.rotationY = 0; // Yaw
         this.rotationX = 0; // Pitch
         this.maxPitch = Math.PI / 4; // Limit for pitch
+        
+        // Collision properties
+        this.collisionRadius = 1.0; // Sphere collision radius for the player
+        this.collisionEnabled = true;
+        
+        // Fly mode properties
+        this.flyMode = true; // Start in fly mode
+        this.gravity = -9.8; // Gravity when not flying
+        this.isOnGround = false; // Track if player is on ground
     }
 
-    update(deltaTime) {
+    update(deltaTime, collisionHandler = null) {
+        // Apply gravity if not in fly mode
+        if (!this.flyMode) {
+            this.acceleration[1] = this.gravity;
+        } else {
+            this.acceleration[1] = 0;
+        }
+
         // Update velocity (acceleration might be used for external forces if needed)
         this.velocity[0] += this.acceleration[0] * deltaTime;
         this.velocity[1] += this.acceleration[1] * deltaTime;
@@ -959,18 +976,33 @@ class PhysicsBody {
 
         // Apply friction/drag to slow down when no input
         this.velocity[0] *= this.friction;
-        this.velocity[1] *= this.friction; // Apply friction to vertical movement
+        if (this.flyMode) {
+            this.velocity[1] *= this.friction; // Apply friction to vertical movement when flying
+        } else {
+            // When on ground, apply more friction to horizontal movement
+            this.velocity[0] *= 0.9;
+            this.velocity[2] *= 0.9;
+        }
         this.velocity[2] *= this.friction;
+
+        // Store old position for collision resolution
+        const oldPosition = [...this.position];
 
         // Update position
         this.position[0] += this.velocity[0] * deltaTime;
         this.position[1] += this.velocity[1] * deltaTime;
         this.position[2] += this.velocity[2] * deltaTime;
 
-        // Simple ground collision (for initial ground contact or if you want landing)
-        if (this.position[1] < 0) {
+        // Handle collisions if collision handler is provided
+        if (this.collisionEnabled && collisionHandler) {
+            collisionHandler(this, oldPosition);
+        }
+
+        // Simple ground collision (fallback if no collision handler)
+        if (!collisionHandler && this.position[1] < 0) {
             this.position[1] = 0;
             this.velocity[1] = -this.velocity[1] * this.restitution * 0.5; // Dampen bounce on ground
+            this.isOnGround = true;
         }
 
         // Clamp pitch to limits
@@ -983,6 +1015,69 @@ class AssetLoader {
         this.gl = gl;
         this.textures = {};
         this.models = {};
+    }
+
+    // Helper: number of components per accessor type
+    _getNumComponents(type) {
+        switch (type) {
+            case 'SCALAR': return 1;
+            case 'VEC2': return 2;
+            case 'VEC3': return 3;
+            case 'VEC4': return 4;
+            case 'MAT2': return 4;
+            case 'MAT3': return 9;
+            case 'MAT4': return 16;
+            default: return 1;
+        }
+    }
+
+    // Helper: byte size per component type
+    _getComponentByteSize(componentType) {
+        switch (componentType) {
+            case 5120: // BYTE
+            case 5121: // UNSIGNED_BYTE
+                return 1;
+            case 5122: // SHORT
+            case 5123: // UNSIGNED_SHORT
+                return 2;
+            case 5125: // UNSIGNED_INT
+            case 5126: // FLOAT
+                return 4;
+            default:
+                return 4;
+        }
+    }
+
+    // Helper: read accessor data as a typed array
+    _getAccessorData(gltf, accessorIndex, buffers) {
+        const accessor = gltf.accessors[accessorIndex];
+        const bufferView = gltf.bufferViews[accessor.bufferView];
+        const buffer = buffers[bufferView.buffer];
+
+        const numComponents = this._getNumComponents(accessor.type);
+        const componentSize = this._getComponentByteSize(accessor.componentType);
+
+        const byteOffset = (bufferView.byteOffset || 0) + (accessor.byteOffset || 0);
+        const length = accessor.count * numComponents;
+
+        // Create the appropriate typed array view into the buffer
+        switch (accessor.componentType) {
+            case 5126: // FLOAT
+                return new Float32Array(buffer, byteOffset, length);
+            case 5123: // UNSIGNED_SHORT
+                return new Uint16Array(buffer, byteOffset, length);
+            case 5121: // UNSIGNED_BYTE
+                return new Uint8Array(buffer, byteOffset, length);
+            case 5125: { // UNSIGNED_INT -> convert down to UNSIGNED_SHORT for our drawElements call
+                const src = new Uint32Array(buffer, byteOffset, length);
+                const dst = new Uint16Array(length);
+                for (let i = 0; i < length; i++) dst[i] = src[i];
+                return dst;
+            }
+            default:
+                console.warn('Unsupported accessor componentType:', accessor.componentType);
+                return null;
+        }
     }
 
     loadTexture(name, url) {
@@ -1022,6 +1117,106 @@ class AssetLoader {
                 console.error(`Failed to load JSON: ${url}`, error);
                 throw error;
             });
+    }
+
+    // NEW: Minimal glTF model loader that creates a Geometry from the first mesh/primitive
+    async loadGLTFModel(name, url) {
+        const gl = this.gl;
+
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error loading glTF: ${response.status}`);
+        }
+        const gltf = await response.json();
+
+        // Load all binary buffers referenced by the glTF
+        const lastSlash = url.lastIndexOf('/');
+        const basePath = lastSlash !== -1 ? url.substring(0, lastSlash + 1) : '';
+
+        const buffers = await Promise.all((gltf.buffers || []).map(async (buf) => {
+            const bufUrl = basePath + (buf.uri || '');
+            const res = await fetch(bufUrl);
+            if (!res.ok) {
+                throw new Error(`HTTP error loading glTF buffer: ${res.status}`);
+            }
+            return await res.arrayBuffer();
+        }));
+
+        if (!gltf.meshes || !gltf.meshes.length) {
+            throw new Error('glTF has no meshes');
+        }
+
+        const mesh = gltf.meshes[0];
+        const primitive = mesh.primitives[0];
+
+        if (!primitive || !primitive.attributes || primitive.mode !== undefined && primitive.mode !== 4) {
+            // mode 4 = TRIANGLES
+            console.warn('Primitive is missing or not TRIANGLES; loading may be incomplete.');
+        }
+
+        const positions = this._getAccessorData(gltf, primitive.attributes.POSITION, buffers);
+        if (!positions) {
+            throw new Error('glTF primitive is missing POSITION data');
+        }
+
+        const normals = primitive.attributes.NORMAL !== undefined
+            ? this._getAccessorData(gltf, primitive.attributes.NORMAL, buffers)
+            : null;
+
+        const texCoords = primitive.attributes.TEXCOORD_0 !== undefined
+            ? this._getAccessorData(gltf, primitive.attributes.TEXCOORD_0, buffers)
+            : null;
+
+        const indices = primitive.indices !== undefined
+            ? this._getAccessorData(gltf, primitive.indices, buffers)
+            : null;
+
+        const geometry = new Geometry(gl);
+
+        // Vertex buffer
+        geometry.vertexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, geometry.vertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+        // Normal buffer (optional)
+        if (normals) {
+            geometry.normalBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, geometry.normalBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
+        } else {
+            geometry.normalBuffer = null;
+        }
+
+        // Texcoord buffer (optional)
+        if (texCoords) {
+            geometry.texCoordBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, geometry.texCoordBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
+        } else {
+            geometry.texCoordBuffer = null;
+        }
+
+        // Index buffer
+        if (indices) {
+            geometry.indexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, geometry.indexBuffer);
+            geometry.numIndices = indices.length;
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+        } else {
+            // If no indices, we could use gl.drawArrays instead, but the rest of the
+            // engine assumes indexed drawing. For safety, create a trivial index buffer.
+            const vertexCount = positions.length / 3;
+            const generated = new Uint16Array(vertexCount);
+            for (let i = 0; i < vertexCount; i++) generated[i] = i;
+            geometry.indexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, geometry.indexBuffer);
+            geometry.numIndices = generated.length;
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, generated, gl.STATIC_DRAW);
+        }
+
+        // Store in models for later retrieval
+        this.models[name] = geometry;
+        return geometry;
     }
 }
 
@@ -1271,12 +1466,19 @@ class WebGLGame {
         this.hoveredPickable = null;
         this.selectedPickable = null;
         this.selectedOutlineNode = null;
+        
+        // Collision system
+        this.collidables = []; // Array of collision objects (spheres, AABBs)
+        this.terrainCollisionData = null; // Will be set in setupScene
 
         this.interactionMenuEl = document.getElementById('interactionMenu');
         this.interactionTitleEl = document.getElementById('interactionTitle');
         this.isInteractionMenuOpen = false;
         this.interactionTarget = null;
         this.interactionRange = 6;
+
+        // Fly mode toggle
+        this.flyMode = true; // Start in fly mode
 
         // Matrices
         this.projectionMatrix = new Matrix4();
@@ -1475,6 +1677,13 @@ class WebGLGame {
         try {
             // Load default assets
             await this.assets.loadTexture('default', 'textures/default.png');
+            // Try to load player glTF model (Untitled.gltf) from the models folder
+            try {
+                await this.assets.loadGLTFModel('player', 'models/Untitled.gltf');
+                console.log('Player glTF model loaded');
+            } catch (err) {
+                console.warn('Failed to load player glTF model, using fallback cube/broom:', err);
+            }
             console.log('Assets loaded successfully');
         } catch (error) {
             console.error('Error loading assets:', error);
@@ -1484,7 +1693,7 @@ class WebGLGame {
 
     setupScene() {
         // Create floor (larger and positioned correctly) - still useful for orientation
-        const floorSize = 20;
+        const floorSize = 30;
         const floorNode = new SceneNode();
         floorNode.localMatrix
             .scale(floorSize, 0.1, floorSize)
@@ -1496,6 +1705,19 @@ class WebGLGame {
         floorNode.addChild(floorMesh);
         this.scene.addChild(floorNode);
 
+        // Store floor collision data
+        const floorCenter = [0, -2, 0];
+        const floorHalfExtents = [floorSize / 2, 0.05, floorSize / 2];
+        if (!this.collidables) {
+            this.collidables = [];
+        }
+        this.collidables.push({
+            type: 'aabb',
+            center: floorCenter,
+            halfExtents: floorHalfExtents,
+            node: floorNode
+        });
+
         // Initialize Perlin Noise generator
         const perlinNoise = new PerlinNoise(Math.random()); // Use a random seed for different terrains
 
@@ -1504,6 +1726,15 @@ class WebGLGame {
         const terrainDepth = 200;
         const terrainSegments = 100; // More segments for better detail with noise
         const terrainHeightScale = 20; // How tall the mountains/hills are
+
+        // Store terrain collision data
+        this.terrainCollisionData = {
+            noiseGenerator: perlinNoise,
+            width: terrainWidth,
+            depth: terrainDepth,
+            heightScale: terrainHeightScale,
+            yOffset: -terrainHeightScale / 2
+        };
 
         const terrainGeometry = new PlaneGeometry(
             this.gl,
@@ -1527,11 +1758,30 @@ class WebGLGame {
         this.playerBody = new PhysicsBody();
         this.playerBody.position = [0, terrainHeightScale / 2 + 5, 0]; // Start higher in the air, above terrain
         this.playerBody.friction = 0.95;
+        this.playerBody.collisionRadius = 2.0; // Adjust based on your model size
+        this.playerBody.flyMode = this.flyMode; // Sync fly mode
 
-        this.playerPhysicsNode = new PhysicsNode(this.playerBody, 'player');
+        // Create collision handler bound to this game instance
+        const collisionHandler = (body, oldPos) => this.handlePlayerCollisions(body, oldPos);
+        this.playerPhysicsNode = new PhysicsNode(this.playerBody, collisionHandler);
         const playerMaterial = new BasicMaterial(this.gl, this.assets.textures.default);
-        const playerModel = new PlayerModelNode(this.gl, playerMaterial);
-        this.playerPhysicsNode.addChild(playerModel);
+
+        // If a glTF player model was loaded, use it; otherwise fall back to simple cubes
+        let playerModelNode;
+        const gltfPlayerGeometry = this.assets.models.player;
+        if (gltfPlayerGeometry instanceof Geometry) {
+            playerModelNode = new MeshNode(gltfPlayerGeometry, playerMaterial);
+
+            // Adjust scale/offset as needed so the model sits nicely on the broom's old position
+            playerModelNode.localMatrix.identity();
+            playerModelNode.localMatrix.scale(10, 10, 10); // Tune these if the model looks too big/small
+            playerModelNode.localMatrix.translate(0, 2, 0);
+            this.playerPhysicsNode.addChild(playerModelNode);
+        } else {
+            // Fallback: original simple witch + broom
+            playerModelNode = new PlayerModelNode(this.gl, playerMaterial);
+            this.playerPhysicsNode.addChild(playerModelNode);
+        }
         this.scene.addChild(this.playerPhysicsNode);
 
         // Remove the old 'magical orb' or reposition it relative to the new terrain
@@ -1546,11 +1796,25 @@ class WebGLGame {
         orbNode.localMatrix.scale(1.5, 1.5, 1.5); // Make it a bit larger
         this.scene.addChild(orbNode);
 
+        const orbCenter = [0, terrainHeightScale + 5, -5];
+        const orbRadius = 1.5;
+        
         this.pickables.push({
             type: 'sphere',
             node: orbNode,
-            center: [0, terrainHeightScale + 5, -5],
-            radius: 1.5
+            center: orbCenter,
+            radius: orbRadius
+        });
+
+        // Store collision data for orb (use array reference so it can be updated)
+        if (!this.collidables) {
+            this.collidables = [];
+        }
+        this.collidables.push({
+            type: 'sphere',
+            center: orbCenter, // This will be updated from world matrix
+            radius: orbRadius,
+            node: orbNode
         });
 
         this.rotatingOrb = orbNode;
@@ -1588,11 +1852,26 @@ class WebGLGame {
             obstacleNode.addChild(obstacleMesh);
             this.scene.addChild(obstacleNode);
 
+            const obstacleCenter = [...obstacleBody.position];
+            const obstacleHalfExtents = [scaleX, scaleY, scaleZ];
+
             this.pickables.push({
                 type: 'aabb',
                 node: obstacleNode,
-                center: obstacleBody.position,
-                halfExtents: [scaleX, scaleY, scaleZ]
+                center: obstacleCenter,
+                halfExtents: obstacleHalfExtents
+            });
+
+            // Store collision data for obstacle
+            if (!this.collidables) {
+                this.collidables = [];
+            }
+            this.collidables.push({
+                type: 'aabb',
+                center: obstacleCenter,
+                halfExtents: obstacleHalfExtents,
+                node: obstacleNode,
+                physicsBody: obstacleBody
             });
         }
     }
@@ -1641,6 +1920,151 @@ class WebGLGame {
         this.activeSpells.push(fireballNode);
     }
 
+    // Collision detection methods
+    handlePlayerCollisions(playerBody, oldPosition) {
+        const playerPos = playerBody.position;
+        const playerRadius = playerBody.collisionRadius;
+        playerBody.isOnGround = false;
+
+        // Check collision with terrain
+        if (this.terrainCollisionData) {
+            const terrainData = this.terrainCollisionData;
+            const terrainY = this.getTerrainHeight(playerPos[0], playerPos[2], terrainData);
+            const minY = terrainY + playerRadius;
+
+            if (playerPos[1] <= minY + 0.1) { // Small threshold for ground detection
+                playerPos[1] = minY;
+                // When not flying, stick to ground
+                if (!playerBody.flyMode) {
+                    playerBody.isOnGround = true;
+                    // Stop downward velocity completely when on ground
+                    if (playerBody.velocity[1] < 0) {
+                        playerBody.velocity[1] = 0;
+                    }
+                } else {
+                    // When flying, apply bounce
+                    if (playerBody.velocity[1] < 0) {
+                        playerBody.velocity[1] = -playerBody.velocity[1] * playerBody.restitution * 0.3;
+                    }
+                }
+            }
+        }
+
+        // Check collision with all collidables
+        for (const collidable of this.collidables) {
+            let collision = false;
+            let normal = [0, 0, 0];
+            let penetration = 0;
+
+            if (collidable.type === 'sphere') {
+                const result = this.sphereSphereCollision(
+                    playerPos, playerRadius,
+                    collidable.center, collidable.radius
+                );
+                collision = result.collision;
+                normal = result.normal;
+                penetration = result.penetration;
+            } else if (collidable.type === 'aabb') {
+                const result = this.sphereAABBCollision(
+                    playerPos, playerRadius,
+                    collidable.center, collidable.halfExtents
+                );
+                collision = result.collision;
+                normal = result.normal;
+                penetration = result.penetration;
+            }
+
+            if (collision) {
+                // Resolve collision: push player out
+                const pushOut = [
+                    normal[0] * penetration,
+                    normal[1] * penetration,
+                    normal[2] * penetration
+                ];
+                playerPos[0] += pushOut[0];
+                playerPos[1] += pushOut[1];
+                playerPos[2] += pushOut[2];
+
+                // Check if this is a ground collision (normal pointing up)
+                if (normal[1] > 0.7 && !playerBody.flyMode) {
+                    playerBody.isOnGround = true;
+                    // Stop downward velocity when landing on ground
+                    if (playerBody.velocity[1] < 0) {
+                        playerBody.velocity[1] = 0;
+                    }
+                } else {
+                    // Reflect velocity along normal for other collisions
+                    const dot = playerBody.velocity[0] * normal[0] +
+                               playerBody.velocity[1] * normal[1] +
+                               playerBody.velocity[2] * normal[2];
+                    
+                    if (dot < 0) {
+                        playerBody.velocity[0] -= 2 * dot * normal[0] * playerBody.restitution;
+                        playerBody.velocity[1] -= 2 * dot * normal[1] * playerBody.restitution;
+                        playerBody.velocity[2] -= 2 * dot * normal[2] * playerBody.restitution;
+                    }
+                }
+            }
+        }
+    }
+
+    getTerrainHeight(x, z, terrainData) {
+        // Sample terrain height using Perlin noise
+        const noiseVal = terrainData.noiseGenerator.fbm2D(
+            x * 0.1,
+            z * 0.1,
+            4,
+            0.5,
+            2.0
+        );
+        const height = (noiseVal * 0.5 + 0.5) * terrainData.heightScale;
+        return height + terrainData.yOffset;
+    }
+
+    sphereSphereCollision(pos1, radius1, pos2, radius2) {
+        const dx = pos1[0] - pos2[0];
+        const dy = pos1[1] - pos2[1];
+        const dz = pos1[2] - pos2[2];
+        const distSq = dx * dx + dy * dy + dz * dz;
+        const minDist = radius1 + radius2;
+        const minDistSq = minDist * minDist;
+
+        if (distSq < minDistSq) {
+            const dist = Math.sqrt(distSq);
+            const penetration = minDist - dist;
+            const normal = dist > 0.0001 
+                ? [dx / dist, dy / dist, dz / dist]
+                : [1, 0, 0]; // Fallback if positions are identical
+            return { collision: true, normal, penetration };
+        }
+        return { collision: false, normal: [0, 0, 0], penetration: 0 };
+    }
+
+    sphereAABBCollision(spherePos, sphereRadius, aabbCenter, aabbHalfExtents) {
+        // Find closest point on AABB to sphere center
+        const closestX = Math.max(aabbCenter[0] - aabbHalfExtents[0],
+                                  Math.min(spherePos[0], aabbCenter[0] + aabbHalfExtents[0]));
+        const closestY = Math.max(aabbCenter[1] - aabbHalfExtents[1],
+                                  Math.min(spherePos[1], aabbCenter[1] + aabbHalfExtents[1]));
+        const closestZ = Math.max(aabbCenter[2] - aabbHalfExtents[2],
+                                  Math.min(spherePos[2], aabbCenter[2] + aabbHalfExtents[2]));
+
+        const dx = spherePos[0] - closestX;
+        const dy = spherePos[1] - closestY;
+        const dz = spherePos[2] - closestZ;
+        const distSq = dx * dx + dy * dy + dz * dz;
+
+        if (distSq < sphereRadius * sphereRadius) {
+            const dist = Math.sqrt(distSq);
+            const penetration = sphereRadius - dist;
+            const normal = dist > 0.0001
+                ? [dx / dist, dy / dist, dz / dist]
+                : [1, 0, 0]; // Fallback
+            return { collision: true, normal, penetration };
+        }
+        return { collision: false, normal: [0, 0, 0], penetration: 0 };
+    }
+
     // NEW: Function to spawn a shield
     spawnShield() {
         const shieldRadius = 1.5;
@@ -1682,7 +2106,7 @@ class WebGLGame {
 
         if (this.isInteractionMenuOpen) {
             // Still update matrices for rendering, but skip gameplay input/movement while menu is open
-            this.scene.update();
+            this.scene.update(null, deltaTime);
             this.camera.update(deltaTime, this.playerBody.position, this.playerBody.rotationY, this.playerBody.rotationX, this.input);
 
             this.viewMatrix.copy(this.camera.getViewMatrix());
@@ -1720,53 +2144,76 @@ class WebGLGame {
             strafeMovement -= flightSpeed * 0.5; // Slower strafing
         }
 
-        // Vertical movement
-        if (this.input.isKeyDown(' ')) { // Spacebar for ascent
-            verticalMovement += verticalSpeed;
-        }
-        if (this.input.isKeyDown('shift')) { // Left Shift for descent
-            verticalMovement -= verticalSpeed;
+        // Vertical movement (only when in fly mode)
+        if (this.flyMode) {
+            if (this.input.isKeyDown(' ')) { // Spacebar for ascent
+                verticalMovement += verticalSpeed;
+            }
+            if (this.input.isKeyDown('shift')) { // Left Shift for descent
+                verticalMovement -= verticalSpeed;
+            }
+        } else {
+            // When not flying, spacebar can be used for jumping (if on ground)
+            if (this.input.isKeyPressed(' ') && this.playerBody.isOnGround) {
+                this.playerBody.velocity[1] = 5; // Jump velocity
+                this.playerBody.isOnGround = false;
+            }
         }
 
         // Calculate velocity components based on player's rotation
         const currentYaw = this.playerBody.rotationY;
         const currentPitch = this.playerBody.rotationX;
 
-        // Aircraft-style movement: if RMB+W, turn toward aim direction
-        const rightMouseDown = this.input.isMouseDown(2);
-        let targetYaw = currentYaw;
-        let targetPitch = currentPitch;
-        
-        if (rightMouseDown && this.input.isKeyDown('w')) {
-            // Calculate aim direction from camera angles
-            targetYaw = currentYaw + this.camera.angleX;
-            targetPitch = Math.max(-this.playerBody.maxPitch, Math.min(this.playerBody.maxPitch, -this.camera.angleY));
+        // Aircraft-style movement: if RMB+W, turn toward aim direction (only when flying)
+        if (this.flyMode) {
+            const rightMouseDown = this.input.isMouseDown(2);
+            let targetYaw = currentYaw;
+            let targetPitch = currentPitch;
             
-            // Smoothly rotate toward target
-            const rotSpeed = 3.0 * deltaTime;
-            const yawDiff = targetYaw - currentYaw;
-            const pitchDiff = targetPitch - currentPitch;
-            
-            // Handle yaw wrapping
-            let adjustedYawDiff = yawDiff;
-            if (yawDiff > Math.PI) adjustedYawDiff -= 2 * Math.PI;
-            if (yawDiff < -Math.PI) adjustedYawDiff += 2 * Math.PI;
-            
-            this.playerBody.rotationY += adjustedYawDiff * rotSpeed;
-            this.playerBody.rotationX += pitchDiff * rotSpeed;
+            if (rightMouseDown && this.input.isKeyDown('w')) {
+                // Calculate aim direction from camera angles
+                targetYaw = currentYaw + this.camera.angleX;
+                targetPitch = Math.max(-this.playerBody.maxPitch, Math.min(this.playerBody.maxPitch, -this.camera.angleY));
+                
+                // Smoothly rotate toward target
+                const rotSpeed = 3.0 * deltaTime;
+                const yawDiff = targetYaw - currentYaw;
+                const pitchDiff = targetPitch - currentPitch;
+                
+                // Handle yaw wrapping
+                let adjustedYawDiff = yawDiff;
+                if (yawDiff > Math.PI) adjustedYawDiff -= 2 * Math.PI;
+                if (yawDiff < -Math.PI) adjustedYawDiff += 2 * Math.PI;
+                
+                this.playerBody.rotationY += adjustedYawDiff * rotSpeed;
+                this.playerBody.rotationX += pitchDiff * rotSpeed;
+            }
         }
 
-        // Forward/Backward component (influenced by pitch for climbing/diving)
-        const forwardX = Math.sin(this.playerBody.rotationY) * Math.cos(this.playerBody.rotationX);
-        const forwardY = Math.sin(this.playerBody.rotationX);
-        const forwardZ = Math.cos(this.playerBody.rotationY) * Math.cos(this.playerBody.rotationX);
+        // Forward/Backward component (influenced by pitch for climbing/diving when flying)
+        let forwardX, forwardY, forwardZ;
+        if (this.flyMode) {
+            forwardX = Math.sin(this.playerBody.rotationY) * Math.cos(this.playerBody.rotationX);
+            forwardY = Math.sin(this.playerBody.rotationX);
+            forwardZ = Math.cos(this.playerBody.rotationY) * Math.cos(this.playerBody.rotationX);
+        } else {
+            // When on ground, movement is flat (no pitch influence)
+            forwardX = Math.sin(this.playerBody.rotationY);
+            forwardY = 0;
+            forwardZ = Math.cos(this.playerBody.rotationY);
+        }
 
         // Strafe component (flat horizontal movement relative to yaw)
         const strafeX = Math.cos(this.playerBody.rotationY);
         const strafeZ = -Math.sin(this.playerBody.rotationY);
 
         this.playerBody.velocity[0] = (forwardX * forwardMovement + strafeX * strafeMovement) * deltaTime;
-        this.playerBody.velocity[1] = (forwardY * forwardMovement + verticalMovement) * deltaTime;
+        if (this.flyMode) {
+            this.playerBody.velocity[1] = (forwardY * forwardMovement + verticalMovement) * deltaTime;
+        } else {
+            // When not flying, don't apply vertical movement from forward movement
+            this.playerBody.velocity[1] += 0; // Gravity will handle this
+        }
         this.playerBody.velocity[2] = (forwardZ * forwardMovement + strafeZ * strafeMovement) * deltaTime;
 
         // Apply mouse movement for rotation (yaw and pitch)
@@ -1775,13 +2222,18 @@ class WebGLGame {
 
             if (rightMouseDown && !this.wasRightMouseDown) {
                 this.playerBody.rotationY += this.camera.angleX;
-                this.playerBody.rotationX = Math.max(-this.playerBody.maxPitch, Math.min(this.playerBody.maxPitch, -this.camera.angleY));
+                if (this.flyMode) {
+                    this.playerBody.rotationX = Math.max(-this.playerBody.maxPitch, Math.min(this.playerBody.maxPitch, -this.camera.angleY));
+                }
                 this.camera.angleX = 0;
             }
 
             if (rightMouseDown) {
-                this.playerBody.rotationY -= this.input.mouseMovementX * 0.002 * turnSpeed; // Yaw
-                this.playerBody.rotationX -= this.input.mouseMovementY * 0.002 * pitchSpeed; // Pitch
+                this.playerBody.rotationY -= this.input.mouseMovementX * 0.002 * turnSpeed; // Yaw (always allowed)
+                // Only allow pitch changes when flying
+                if (this.flyMode) {
+                    this.playerBody.rotationX -= this.input.mouseMovementY * 0.002 * pitchSpeed; // Pitch
+                }
             }
 
             this.wasRightMouseDown = rightMouseDown;
@@ -1797,7 +2249,22 @@ class WebGLGame {
 
 
         // Update scene and camera
-        this.scene.update();
+        // Update collidable positions (for obstacles that might move)
+        for (const collidable of this.collidables) {
+            if (collidable.physicsBody) {
+                collidable.center[0] = collidable.physicsBody.position[0];
+                collidable.center[1] = collidable.physicsBody.position[1];
+                collidable.center[2] = collidable.physicsBody.position[2];
+            } else if (collidable.node && collidable.node.worldMatrix) {
+                // Update static collidables from their world matrix
+                const worldPos = collidable.node.worldMatrix.transformPoint([0, 0, 0]);
+                collidable.center[0] = worldPos[0];
+                collidable.center[1] = worldPos[1];
+                collidable.center[2] = worldPos[2];
+            }
+        }
+
+        this.scene.update(null, deltaTime);
         this.camera.update(deltaTime, this.playerBody.position, this.playerBody.rotationY, this.playerBody.rotationX, this.input);
 
         // NEW: Update active spells
@@ -1842,7 +2309,21 @@ class WebGLGame {
 
         this.updateTargeting();
 
-        if (this.input.isKeyPressed('q')) {
+        // Toggle fly mode with Q (only if interaction menu is not open)
+        if (this.input.isKeyPressed('q') && !this.isInteractionMenuOpen) {
+            this.flyMode = !this.flyMode;
+            this.playerBody.flyMode = this.flyMode;
+            
+            // If disabling fly mode, reset pitch to 0 (level)
+            if (!this.flyMode) {
+                this.playerBody.rotationX = 0;
+            }
+            
+            console.log(`Fly mode: ${this.flyMode ? 'ON' : 'OFF'}`);
+        }
+        
+        // Open interaction menu with Q only if not in fly mode and pickable is selected
+        if (this.input.isKeyPressed('q') && !this.flyMode && !this.isInteractionMenuOpen) {
             this.tryOpenInteractionMenu();
         }
 
